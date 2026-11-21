@@ -7,17 +7,21 @@ import java.util.List;
 public class AlgoMain {
 
     public static void main(String[] args) {
-        List<Integer> list = Arrays.asList(4,2,7,9,1,3,5,8); // List of ids
-        int num = 5; // This is the number i am searching
+
+        List<Integer> list = Arrays.asList(4,2,7,9,1,3,5,8);
+
+        int num = 5;
+
         System.out.println("Sample size, number of Ids " + list.size());
-        System.out.println("************BRUTE FORCE**********");
+        System.out.println("---------------------BRUTE FORCE---------------------------");
         bruteForce(list,num);
         bruteForce(list,10);
-        System.out.println("************DIVIDE AND CONQUER*********");
+
+        System.out.println("---------------------DIVIDE AND CONQUER---------------------");
         divideAndConquer(list,num);
         divideAndConquer(list,7);
 
-        System.out.println("************DIVIDE AND CONQUER EASY*********");
+        System.out.println("---------------------DIVIDE AND CONQUER EASY---------------------");
         divideAndConquerEasy(list,num);
         divideAndConquerEasy(list,7);
     }
@@ -35,16 +39,12 @@ public class AlgoMain {
 
     private static void divideAndConquer(List<Integer> list, int num) {
         int iterations = 0;
-        // Step 1: Sort the list
-        Collections.sort(list);
-        // System.out.println(list);
 
-        // Step 2: find the mid index
+        Collections.sort(list);
+
         int low = 0;
         int high = list.size() - 1;
 
-
-        // Step 3: check if the num is equal to the element at index mid
         while(low <= high) {
             iterations++;
             int mid = (low + high) / 2;
@@ -54,7 +54,7 @@ public class AlgoMain {
                 return;
             }
 
-            if(list.get(mid) < num){ //4 < 7
+            if(list.get(mid) < num){
                 low = mid + 1;
             }
             else{
@@ -67,12 +67,12 @@ public class AlgoMain {
 
     private static void bruteForce(List<Integer> list, int num) {
         int iterations = 0;
-        for(int e : list){ // I am iterating thru the list with each element saved in e at a time
+        for(int e : list){
             iterations++;
             if(num == e){
                 System.out.println("Number Found: " + num);
                 System.out.println("It took " + iterations + " Iterations");
-                return; // method bruteForce ends here.
+                return;
             }
         }
         System.out.println("Number Not Found: " + num);
