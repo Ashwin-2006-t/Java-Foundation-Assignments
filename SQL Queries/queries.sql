@@ -58,7 +58,10 @@ limit <skip> --> (optional clause)
 */
 
 
+
 use lms_db_2026;
+
+
 -- Insertion
 insert into learner (name, user_id, contact_id, address_id) 
 values ("Harry Potter",1, null ,null);
@@ -228,3 +231,152 @@ VALUES
 update learner
 	set contact_id = 2
 where id=6;
+
+
+-- select operation
+-- Query to fetch all learners
+/*
+When your fetch child record, U must also fetch the corresponding record of the parent tables.alter
+learner has 3 parent tables : user, contact, address.
+2 of these are NOT NULL and address can be NULL
+*/
+
+select * from learner; -- this give me learner details with FKs which is not of much help
+
+/*
+3 ways of combining tables (Parent child relationship)
+
+1. Manual Mapping
+2. Joins
+3. Nested Queries (Sub-Query)
+*/
+
+-- Manual Mapping
+select l.id, l.name, c.primary_contact, c.main_email, u.username, u.is_active, a.city
+   from learner l, contact c, user u, address a
+   where l.user_id = u.id and l.contact_id = c.id and l.address_id = a.id;
+-- here issue with manual mapping i shtat if any of the where clause conditions fail, we loose entire info (it displays nothing)
+
+
+
+-- JOINS ---------->>>>>>>
+-- ==========================================
+-- SQL JOINS
+-- 1. INNER JOIN
+-- 2. LEFT JOIN
+-- 3. 
+-- ==========================================
+
+-- 1. INNER JOIN
+-- Returns only matching records from both tables.
+-- If a learner has no address, that learner's
+-- entire record will be excluded.
+SELECT
+    l.id,
+    l.name,
+    c.primary_contact,
+    c.main_email,
+    u.username,
+    u.is_active,
+    a.city
+FROM learner l
+JOIN user u ON l.user_id = u.id
+JOIN contact c ON l.contact_id = c.id
+JOIN address a ON l.address_id = a.id;
+
+-- 2. LEFT JOIN
+-- Returns all records from the LEFT table (learner).
+-- If an address exists, retrieve its details.
+-- Otherwise, return NULL for address columns.
+-- Hence, learners without addresses are not excluded.
+
+SELECT
+    l.id,
+    l.name,
+    c.primary_contact,
+    c.main_email,
+    u.username,
+    u.is_active,
+    a.city
+FROM learner l
+JOIN user u ON l.user_id = u.id
+JOIN contact c ON l.contact_id = c.id
+LEFT JOIN address a ON l.address_id = a.id;
+
+-- 3. COALESCE() FUNCTION
+-- Returns the first non-NULL value.
+-- If city is NULL, display 'Not Provided'.
+-- AS city gives the output column an alias.
+
+SELECT
+    l.id,
+    l.name,
+    c.primary_contact,
+    c.main_email,
+    u.username,
+    u.is_active,
+    COALESCE(a.city, 'Not Provided') AS city
+FROM learner l
+JOIN user u ON l.user_id = u.id
+JOIN contact c ON l.contact_id = c.id
+LEFT JOIN address a ON l.address_id = a.id;
+
+-- 4. COALESCE() EXAMPLES
+SELECT COALESCE(NULL, 'Hello');
+-- Output: Hello
+SELECT COALESCE(NULL, NULL, 'Chennai', 'Bangalore');
+-- Output: Chennai
+
+
+-- giving proper info to app e.g. is_active
+SELECT
+    l.id,
+    l.name,
+    c.primary_contact,
+    c.main_email,
+    u.username,
+    CASE u.is_active
+    WHEN 1 THEN 'ENABLED'
+    WHEN 0 THEN 'DISABLED'
+    ELSE 'UNKNOWN' 
+    END 
+    as learner_status,
+    COALESCE(a.city, 'Not Provided') AS city
+FROM learner l
+JOIN user u ON l.user_id = u.id
+JOIN contact c ON l.contact_id = c.id
+LEFT JOIN address a ON l.address_id = a.id;
+
+
+-- inserting records in course table but since it has instructor id and department id a s foreign keys , we start from ther
+-- but instructor also has FK from user, contact and address tables so lets start from there
+
+insert into user(username, password, role) values ('Albus Dumbleres','ablbus@432','INSTRUCTOR');
+
+INSERT INTO contact
+(primary_contact, main_email)
+VALUES
+('9876543454310', 'test@gmail.com');
+
+insert into address(city, pincode) values ('MUMBAI','543242');
+
+insert into instructor(name, salary, contact_id, user_id,address_id)
+values ("Albus Dumbleres",'2500000',6,7,7);
+
+insert into department(name) values ('programming'),('product management'); -- multiple inserts
+
+insert into course(name, fees, instructor_id, department_id) values ('SQL Programming', 3500,7,1);
+
+-- Query to fetch info abour the course
+select c.id as Course_id, c.name as course_name , c.fees as FEES, i.name as Instructor_name, d.name as department_name
+from course c
+JOIN instructor i ON c.instructor_id = i.id
+JOIN department d ON c.department_id = d.id;
+
+/*
++-----------+-----------------+------+-----------------+-----------------+
+| Course_id | course_name     | FEES | Instructor_name | department_name |
++-----------+-----------------+------+-----------------+-----------------+
+|         1 | SQL Programming | 3500 | Albus Dumbleres | programming     |
++-----------+-----------------+------+-----------------+-----------------+
+*/
