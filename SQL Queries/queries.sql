@@ -380,3 +380,322 @@ JOIN department d ON c.department_id = d.id;
 |         1 | SQL Programming | 3500 | Albus Dumbleres | programming     |
 +-----------+-----------------+------+-----------------+-----------------+
 */
+
+-- =========================================
+-- GROUP BY
+-- =========================================
+
+-- Select the database
+USE lms_db_2026;
+
+-- 1. Display all courses handled by instructor ID = 7
+-- JOIN connects instructor and course using instructor ID
+-- WHERE filters only instructor ID 7
+SELECT c.*, i.name
+FROM instructor i
+JOIN course c ON i.id = c.instructor_id
+WHERE i.id = 7;
+
+-- 2. Insert sample courses for different instructors
+-- Each course is assigned to an instructor using instructor_id
+INSERT INTO course (name, fees, instructor_id, department_id)
+VALUES
+('Java Programming', 4000, 5, 1),
+('Python Programming', 4500, 5, 1),
+('Web Development', 5000, 6, 2),
+('Database Management', 3500, 6, 2),
+('Spring Boot', 6000, 7, 1),
+('Data Structures', 4000, 7, 1),
+('Machine Learning', 7000, 8, 2);
+
+-- 3. Display the number of courses handled by each instructor ID
+-- COUNT(*) counts the number of courses
+-- GROUP BY groups courses having the same instructor ID
+SELECT instructor_id, COUNT(*) AS total_courses
+FROM course
+GROUP BY instructor_id;
+
+-- 4. Display instructor name and number of courses handled
+-- JOIN connects instructor and course
+-- COUNT(c.id) counts the courses for each instructor
+-- GROUP BY groups the result based on instructor ID and name
+SELECT
+    i.name AS instructor_name,
+    COUNT(c.id) AS total_courses
+FROM instructor i
+JOIN course c
+    ON i.id = c.instructor_id
+GROUP BY i.id, i.name;
+
+
+-- --------------------------------
+-- Aggregate function
+-- --------------------------------
+
+-- SELECT *
+-- FROM instructor i
+-- JOIN course c
+--     ON i.id = c.instructor_id
+-- JOIN department d
+--     ON c.department_id = d.id;
+
+-- Display average instructor salary in each department
+
+SELECT
+    d.name AS department_name,
+    AVG(i.salary) AS average_salary
+FROM instructor i
+JOIN course c
+    ON i.id = c.instructor_id
+JOIN department d
+    ON c.department_id = d.id
+GROUP BY
+    d.id,
+    d.name;
+    
+-- Display average course fee for each instructor
+-- in each department
+
+SELECT
+    i.name AS instructor_name,
+    d.name AS department_name,
+    AVG(c.fees) AS average_fees
+FROM instructor i
+JOIN course c
+    ON i.id = c.instructor_id
+JOIN department d
+    ON c.department_id = d.id
+GROUP BY
+    i.id, i.name, d.id, d.name;
+    
+
+
+-- Insert sample enrollment records
+-- learner_id represents the enrolled learner
+-- course_id represents the selected course
+-- date_of_enroll represents the enrollment date
+INSERT INTO learner_course
+(learner_id, course_id, date_of_enroll, amount_paid, coupon, discount)
+VALUES
+(6, 1, '2026-11-20', 3500, 'NEW10', '10%'),
+(7, 1, '2026-11-21', 3500, NULL, NULL),
+(10, 1, '2026-11-22', 3000, 'SAVE500', '500'),
+(6, 2, '2026-11-23', 4000, NULL, NULL),
+(7, 2, '2026-11-24', 3800, 'JAVA5', '5%'),
+(10, 3, '2026-11-25', 4500, NULL, NULL);
+
+
+-- 3. Display all enrollment records
+SELECT *
+FROM learner_course;
+
+-- 4. Display total learners enrolled in each course
+-- JOIN connects course and learner_course
+-- COUNT() counts the enrolled learners
+-- LEFT JOIN includes courses with zero enrollments
+-- GROUP BY groups learners based on each course
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    COUNT(lc.learner_id) AS total_learners
+FROM course c
+LEFT JOIN learner_course lc
+    ON c.id = lc.course_id
+GROUP BY c.id, c.name;
+
+
+-- Display courses having at least 2 enrolled learners and ASC or DESC order
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    COUNT(lc.learner_id) AS total_learners
+FROM course c
+LEFT JOIN learner_course lc
+    ON c.id = lc.course_id
+GROUP BY c.id, c.name
+HAVING COUNT(lc.learner_id) >= 2
+ORDER BY total_learners ASC
+limit 2;
+
+
+
+
+-- =============================================
+-- LEFT JOIN AND RIGHT JOIN PRACTICE
+-- Database: lms_db_2026
+-- =============================================
+-- =============================================
+-- 1. DISPLAY ALL COURSES
+-- =============================================
+SELECT * FROM course;
+-- =============================================
+-- 2. INSERT LEARNER ENROLLMENTS
+-- Cloud Computing (ID: 9) - 2 learners
+-- Cyber Security (ID: 10) - 1 learner
+-- =============================================
+INSERT INTO learner_course
+(learner_id, course_id, date_of_enroll, amount_paid, coupon, discount)
+VALUES
+(6, 9, '2026-11-25', 5500, NULL, NULL),
+(7, 9, '2026-11-25', 5500, NULL, NULL),
+(10, 10, '2026-11-25', 6000, NULL, NULL);
+-- =============================================
+-- 3. VERIFY LEARNER ENROLLMENTS
+-- =============================================
+SELECT * FROM learner_course;
+-- =============================================
+-- 4. LEFT JOIN
+-- Display all courses and their enrollments
+-- =============================================
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    lc.learner_id,
+    lc.amount_paid
+FROM course c
+LEFT JOIN learner_course lc
+    ON c.id = lc.course_id;
+-- =============================================
+-- 5. RIGHT JOIN
+-- Display all courses and their enrollments
+-- =============================================
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    lc.learner_id,
+    lc.amount_paid
+FROM learner_course lc
+RIGHT JOIN course c
+    ON lc.course_id = c.id;
+-- =============================================
+-- 6. LEFT JOIN WITH GROUP BY AND COUNT
+-- Count the number of learners in each course
+-- =============================================
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    COUNT(lc.learner_id) AS total_learners
+FROM course c
+LEFT JOIN learner_course lc
+    ON c.id = lc.course_id
+GROUP BY c.id, c.name;
+
+-- =============================================
+-- 7. RIGHT JOIN WITH GROUP BY AND COUNT
+-- Count the number of learners in each course
+-- =============================================
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    COUNT(lc.learner_id) AS total_learners
+FROM learner_course lc
+RIGHT JOIN course c
+    ON lc.course_id = c.id
+GROUP BY c.id, c.name;
+
+-- LEFT and RIGHT are same, except it depends on the sequence of join.
+
+-- =============================================
+-- 8. HAVING
+-- Display courses having at least 2 learners
+-- =============================================
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    COUNT(lc.learner_id) AS total_learners
+FROM course c
+LEFT JOIN learner_course lc
+    ON c.id = lc.course_id
+GROUP BY c.id, c.name
+HAVING COUNT(lc.learner_id) >= 2;
+-- =============================================
+-- 9. ORDER BY
+-- Sort courses by learner count (ascending)
+-- =============================================
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    COUNT(lc.learner_id) AS total_learners
+FROM course c
+LEFT JOIN learner_course lc
+    ON c.id = lc.course_id
+GROUP BY c.id, c.name
+ORDER BY total_learners ASC;
+-- =============================================
+-- 10. DISPLAY ONLY COURSES WITH ZERO LEARNERS
+-- =============================================
+SELECT
+    c.id AS course_id,
+    c.name AS course_name,
+    COUNT(lc.learner_id) AS total_learners
+FROM course c
+LEFT JOIN learner_course lc
+    ON c.id = lc.course_id
+GROUP BY c.id, c.name
+HAVING COUNT(lc.learner_id) = 0;
+
+
+-- Insert track records
+INSERT INTO track (name)
+VALUES
+('Java Programming'),
+('Product Mgmt'),
+('App Development');
+
+-- Insert course and track relationships
+
+INSERT INTO course_track (course_id, track_id)
+VALUES
+(1, 1),
+(2, 1),
+(2, 3),
+(3, 3),
+(4, 2),
+(5, 2);
+
+
+-- -------------------------
+-- SELF JOIN
+-- ------------------------
+
+-- Add lead_id column to instructor table
+ALTER TABLE instructor
+ADD COLUMN lead_id INT NULL;
+
+-- Reference the instructor table itself
+ALTER TABLE instructor
+ADD CONSTRAINT fk_instructor_lead
+FOREIGN KEY (lead_id)
+REFERENCES instructor (id);
+
+-- Insert additional instructors
+INSERT INTO instructor
+(name, salary, user_id, contact_id, address_id, lead_id)
+VALUES
+('Harry Potter', 60000, 2, 2, 2, 6),
+('Ron Weasley', 55000, 5, 5, 5, 6),
+('Hermione Granger', 65000, 7, 6, 7, 7);
+
+-- Assign John Smith (ID: 5) as the lead of David Kumar and Albus Dumbleres
+UPDATE instructor
+SET lead_id = 5
+WHERE id IN (6, 7);
+
+-- Display instructor name and their lead name -------------------------(SELF JOIN)-------------------------------------------------------------------
+SELECT
+    i.id AS instructor_id,
+    i.name AS instructor_name,
+	coalesce(l.name,'- No Lead -')  AS lead_name
+FROM instructor i -- PK
+LEFT JOIN instructor l -- FK
+    ON i.lead_id = l.id;
+    
+-- count number of instructor working under each lead 
+SELECT
+    l.id AS lead_id,
+    COALESCE(l.name, '-No Lead-') AS lead_name,
+    COUNT(i.id) AS total_instructors
+FROM instructor i
+LEFT JOIN instructor l
+    ON i.lead_id = l.id
+GROUP BY l.id, l.name;
