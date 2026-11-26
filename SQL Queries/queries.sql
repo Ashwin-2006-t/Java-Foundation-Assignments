@@ -699,3 +699,832 @@ FROM instructor i
 LEFT JOIN instructor l
     ON i.lead_id = l.id
 GROUP BY l.id, l.name;
+
+
+use lms_db_2026;
+
+/*
+===========================================================
+TOPIC: SUBQUERY, IN, EXISTS AND FAN-OUT PROBLEM
+===========================================================
+QUESTION:
+Display the instructors whose salary is greater than
+the average salary of instructors teaching in the
+Programming department.
+
+TABLES:
+1. instructor
+2. course
+3. department
+*/
+/*
+-----------------------------------------------------------
+PART 1: UNDERSTANDING A NORMAL SUBQUERY
+-----------------------------------------------------------
+Example question:
+Display instructors whose salary is greater than
+the overall average salary of all instructors.
+
+STEP 1: Calculate average salary.
+*/
+SELECT AVG(salary)
+FROM instructor;
+
+/*
+STEP 2: Use the above query as a SUBQUERY.
+The inner query calculates the average salary.
+The outer query compares each instructor's salary
+with the calculated average.
+*/
+SELECT i.name, i.salary
+FROM instructor i
+WHERE i.salary > (
+    SELECT AVG(i2.salary)
+    FROM instructor i2
+);
+
+/*
+HOW IT WORKS:
+
+Inner query:
+SELECT AVG(i2.salary)
+FROM instructor i2
+
+Calculates the average salary.
+
+Outer query:
+SELECT i.name, i.salary
+FROM instructor i
+
+Displays instructors whose salary is greater
+than the average salary.
+
+A SUBQUERY is a query written inside another query.
+*/
+/*
+===========================================================
+PART 2: FIND INSTRUCTORS TEACHING IN PROGRAMMING DEPARTMENT
+===========================================================
+STEP 1: Use JOIN to connect the three tables.
+
+instructor -> course -> department
+*/
+SELECT
+    i.id,
+    i.name,
+    i.salary
+FROM instructor i
+JOIN course c
+    ON i.id = c.instructor_id
+JOIN department d
+    ON c.department_id = d.id
+WHERE d.name = 'Programming';
+
+/*
+EXPECTED OBSERVATION:
+
+Suppose the output is:
+
+id   name    salary
+1    Albus   60000
+1    Albus   60000
+2    Harry   50000
+
+WHY IS ID 1 REPEATED?
+
+Because Albus teaches multiple courses in
+the Programming department.
+
+This is called FAN-OUT.
+
+The JOIN produces duplicate instructor records.
+*/
+
+
+/*
+===========================================================
+PART 3: SOLVING DUPLICATES USING IN
+===========================================================
+
+STEP 1: Fetch instructor IDs teaching in Programming.
+
+The inner query may return:
+
+1
+1
+2
+
+STEP 2: Use IN to check whether the instructor ID
+belongs to the returned list.
+
+IN checks whether an ID matches ANY value in the list.
+*/
+SELECT
+    i.id,
+    i.name,
+    i.salary
+FROM instructor i
+WHERE i.id IN (
+    SELECT i2.id
+    FROM instructor i2
+    JOIN course c
+        ON i2.id = c.instructor_id
+    JOIN department d
+        ON c.department_id = d.id
+    WHERE d.name = 'Programming'
+
+);
+
+/*
+IMPORTANT:
+
+Inner query returns:
+
+1
+1
+2
+
+Outer query checks:
+
+Is instructor ID 1 in the list? YES
+Is instructor ID 2 in the list? YES
+Is instructor ID 3 in the list? NO
+
+Even though ID 1 appears twice in the subquery,
+the outer instructor row is returned only once.
+
+IN avoids duplicate outer instructor rows.
+
+NOTE:
+IN does not remove duplicates from the inner query.
+It simply checks membership in the returned list.
+*/
+
+
+/*
+===========================================================
+PART 4: FINAL QUESTION USING IN AND AVG()
+===========================================================
+
+QUESTION:
+Display instructors whose salary is greater than
+the average salary of instructors teaching in
+the Programming department.
+
+STEP 1: Identify instructors belonging to Programming.
+
+STEP 2: Calculate their average salary.
+
+STEP 3: Display instructors earning more than that average.
+*/
+
+SELECT
+    i.name,
+    i.salary
+FROM instructor i
+WHERE i.salary > (
+
+    SELECT AVG(i2.salary)
+    FROM instructor i2
+
+    WHERE i2.id IN (
+
+        SELECT i3.id
+        FROM instructor i3
+        JOIN course c
+            ON i3.id = c.instructor_id
+        JOIN department d
+            ON c.department_id = d.id
+        WHERE d.name = 'Programming'
+
+    )
+
+);
+
+/*
+HOW IT WORKS:
+
+INNERMOST QUERY:
+Finds instructors teaching in Programming.
+
+Example output:
+1
+1
+2
+
+IN:
+Checks which instructor IDs belong to that list.
+
+AVG():
+Calculates average salary using the matching
+instructor rows from the instructor table.
+
+OUTER QUERY:
+Displays instructors whose salary is greater
+than the calculated average.
+
+IN avoids duplicate outer instructor rows.
+*/
+
+
+/*
+===========================================================
+PART 5: UNDERSTANDING EXISTS
+===========================================================
+
+EXISTS checks whether at least one matching record
+is available.
+
+It returns:
+TRUE  -> At least one matching row exists.
+FALSE -> No matching row exists.
+
+Unlike JOIN, EXISTS does not multiply outer rows.
+*/
+
+
+/*
+METHOD 1: SELECT 1
+
+SELECT 1 returns a constant value for every
+matching row.
+
+It does not perform the matching.
+
+WHERE performs the matching.
+EXISTS checks whether rows are returned.
+*/
+
+SELECT
+    i.name,
+    i.salary
+FROM instructor i
+WHERE EXISTS (
+
+    SELECT 1
+    FROM course c
+    JOIN department d
+        ON c.department_id = d.id
+    WHERE c.instructor_id = i.id
+      AND d.name = 'Programming'
+
+);
+
+
+/*
+EXAMPLE:
+
+Albus teaches 3 Programming courses.
+
+Inner query returns:
+
+1
+1
+1
+
+EXISTS checks:
+Are there any matching rows?
+
+YES -> TRUE
+
+Albus appears only once in the outer result.
+*/
+
+
+/*
+-----------------------------------------------------------
+METHOD 2: SELECT *
+-----------------------------------------------------------
+
+SELECT * returns all columns from matching rows.
+
+EXISTS does not need those actual column values.
+It only checks whether at least one row exists.
+*/
+
+SELECT
+    i.name,
+    i.salary
+FROM instructor i
+WHERE EXISTS (
+
+    SELECT *
+    FROM course c
+    JOIN department d
+        ON c.department_id = d.id
+    WHERE c.instructor_id = i.id
+      AND d.name = 'Programming'
+
+);
+
+
+/*
+-----------------------------------------------------------
+METHOD 3: SELECT c.id
+-----------------------------------------------------------
+
+SELECT c.id returns the course ID of matching rows.
+
+EXISTS checks whether at least one matching row exists.
+*/
+
+SELECT
+    i.name,
+    i.salary
+FROM instructor i
+WHERE EXISTS (
+
+    SELECT c.id
+    FROM course c
+    JOIN department d
+        ON c.department_id = d.id
+    WHERE c.instructor_id = i.id
+      AND d.name = 'Programming'
+
+);
+
+
+/*
+IMPORTANT:
+
+All three methods give the same result inside EXISTS:
+
+1. SELECT 1
+2. SELECT *
+3. SELECT c.id
+
+The matching is performed by:
+
+WHERE c.instructor_id = i.id
+
+EXISTS only checks whether matching rows exist.
+
+SELECT 1 is preferred because we only need to
+check existence, not retrieve actual data.
+*/
+
+
+/*
+===========================================================
+PART 6: FAN-OUT PROBLEM WHILE CALCULATING AVG()
+===========================================================
+
+PROBLEM:
+
+If we directly calculate AVG() using JOIN,
+duplicate instructor records can affect the average.
+
+Example JOIN output:
+
+Albus  60000
+Albus  60000
+Harry  50000
+Albus  60000
+
+Incorrect average:
+
+(60000 + 60000 + 50000 + 60000) / 4 = 57500
+
+Correct average:
+
+(60000 + 50000) / 2 = 55000
+*/
+
+
+/*
+INCORRECT APPROACH:
+
+JOIN creates multiple rows for instructors
+who teach multiple courses.
+
+AVG() counts the repeated salary values.
+*/
+
+SELECT AVG(i.salary) AS incorrect_average
+FROM instructor i
+JOIN course c
+    ON i.id = c.instructor_id
+JOIN department d
+    ON c.department_id = d.id
+WHERE d.name = 'Programming';
+
+
+/*
+===========================================================
+PART 7: SOLVING FAN-OUT USING EXISTS
+===========================================================
+
+QUESTION:
+
+Display instructors whose salary is greater than
+the average salary of instructors teaching in
+the Programming department.
+
+STEP 1:
+Start with the instructor table.
+
+STEP 2:
+Use EXISTS to check whether each instructor teaches
+at least one course in Programming.
+
+STEP 3:
+Calculate AVG() using the matching instructor rows.
+
+STEP 4:
+Compare each instructor's salary with that average.
+*/
+
+SELECT
+    i.name,
+    i.salary
+FROM instructor i
+WHERE i.salary > (
+
+    SELECT AVG(i2.salary)
+    FROM instructor i2
+
+    WHERE EXISTS (
+
+        SELECT 1
+        FROM course c
+        JOIN department d
+            ON c.department_id = d.id
+
+        WHERE c.instructor_id = i2.id
+          AND d.name = 'Programming'
+
+    )
+
+);
+
+
+/*
+===========================================================
+HOW THE FINAL EXISTS QUERY WORKS
+===========================================================
+
+OUTER QUERY:
+SELECT i.name, i.salary
+FROM instructor i
+
+Takes instructors from the instructor table.
+
+INNER EXISTS:
+Checks whether the instructor teaches at least
+one course in the Programming department.
+
+EXISTS:
+Even if Albus teaches 3 Programming courses,
+he is considered only once in the outer instructor set.
+
+AVG():
+Calculates the average salary using the matching
+instructor records.
+
+FINAL COMPARISON:
+Displays instructors whose salary is greater
+than the calculated average.
+
+===========================================================
+FINAL REVISION
+===========================================================
+
+SUBQUERY:
+A query inside another query.
+
+JOIN:
+Combines matching records from multiple tables.
+
+FAN-OUT:
+One instructor produces multiple rows after JOIN
+because of multiple matching courses.
+
+IN:
+Checks whether a value matches any value in a list.
+
+EXISTS:
+Checks whether at least one matching record exists.
+
+SELECT 1:
+Returns a constant value. Used when we only need
+to check whether a matching row exists.
+
+SELECT *:
+Selects all columns.
+
+SELECT c.id:
+Selects the course ID.
+
+AVG():
+Calculates the average of selected values.
+
+IMPORTANT DIFFERENCE:
+
+IN:
+Checks whether a value belongs to a returned list.
+
+EXISTS:
+Checks whether matching rows are available.
+
+BOTH can help avoid duplicate outer rows.
+
+EXISTS is particularly useful when we only need
+to check a relationship without joining all matching
+rows into the outer result.
+*/
+/*
+Operator		Simple meaning
+IN				Is this value present in the given list?
+EXISTS			Does at least one matching row exist?
+NOT IN			Is this value absent from the given list?
+NOT EXISTS		Does no matching row exist?
+*/
+
+
+
+
+-- Nested - Sub-Queries 
+/*
+IN 
+where exists 
+ALL 
+ANY
+=
+*/
+
+-- display instructors earning more than ALL the instructor working in 'programming' department 
+select i.name
+from instructor i 
+where i.salary > ALL (select i.salary from instructor i 
+						JOIN course c ON i.id = c.instructor_id
+						JOIN department d ON c.department_id = d.id 
+						where d.name='programming');
+/*
+Outer i refers to the instructor table in the outer query.
+Inner i refers to the instructor table in the inner query.
+*/
+
+-- we don't usually use this ALL as this is similar to using max grouping Fn 
+select i.name
+from instructor i 
+where i.salary >  (select max(i.salary) from instructor i 
+						JOIN course c ON i.id = c.instructor_id
+						JOIN department d ON c.department_id = d.id 
+						where d.name='programming');
+
+-- display instructors earning more than atleast one instructor from 'product management' department 
+select i.name
+from instructor i 
+where i.salary > ANY (select i.salary from instructor i 
+						JOIN course c ON i.id = c.instructor_id
+						JOIN department d ON c.department_id = d.id 
+						where d.name='product management');
+ -- OR   ----                    
+select i.name
+from instructor i 
+where i.salary >  (select min(i.salary) from instructor i 
+						JOIN course c ON i.id = c.instructor_id
+						JOIN department d ON c.department_id = d.id 
+						where d.name='product management');
+                         
+
+-- IN 
+-- display all learners living in following cities ['london', 'mumbai']
+select l.name
+from learner l JOIN address a ON l.address_id = a.id
+where a.city IN ('London', 'Mumbai');
+
+-- using subquery 
+select l.name
+from learner l
+where l.address_id IN (select a.id 
+						from address a 
+						where a.city IN ('London', 'Mumbai')); 
+-- 7 = [8,9,1,2]
+
+-- display learner that have enrolled in course name as Java Programming. do this using sub query 
+select l.name
+from learner l
+where l.id IN 
+			(select lc.learner_id 
+            from learner_course lc 
+            where lc.course_id = (select c.id -- '=' here works because we r guarateed to get single id as c.name is unique
+								  from course c 
+                                   where c.name="java programming")); 
+
+select l.name
+from learner l
+where l.id IN 
+			(select lc.learner_id 
+            from learner_course lc 
+            where lc.course_id IN ( select c.id 
+									from course c 
+									where c.name="java programming"));
+                                    
+                                    
+-- window functions : rank(), dense_rank(), row_number() 
+-- All three are used to assign numbers to rows based on a particular order, such as course fees, instructor salaries, marks, etc.
+/*
++----+--------------------+------+---------------+---------------+
+| id | name               | fee  | instructor_id | department_id |
++----+--------------------+------+---------------+---------------+
+|  1 | SQL programming    | 3500 |             1 |             1 |
+|  2 | JAVA programming   | 6500 |             1 |             1 |
+|  3 | SPRING Framework   | 8500 |             2 |             1 |
+|  4 | Product Management | 9500 |             3 |             2 |
+|  5 | ITA cert 1         | 2345 |             4 |             2 |
+|  6 | Scrum A-Z          | 6000 |             3 |             2 |
++----+--------------------+------+---------------+---------------+
+*/
+-- display the courses and their ranks as per the fee 
+select c.name, c.fees , RANK() OVER (order by fees DESC) as rnk
+from course c;
+
+/*
+Product Management	9500	1
+SPRING Framework	8500	2
+JAVA programming	6500	3
+Scrum A-Z			6500	3
+SQL programming		3500	5
+ITA cert 1			2345	6
+*/
+update course SET fee=6500 where id=6;
+-- rank() skips the sequence -- above it has skipped rank 4
+
+select c.name, c.fees , DENSE_RANK() OVER (order by fees DESC) as rnk
+from course c;
+
+/*
+Product Management	9500	1
+SPRING Framework	8500	2
+JAVA programming	6500	3
+Scrum A-Z			6500	3
+SQL programming		3500	4
+ITA cert 1			2345	5
+*/
+-- dense rank does not skip seq. 
+
+select c.name , c.fees,
+row_number() OVER (order by c.fees ASC) as row_num ,
+RANK() OVER (order by fees DESC) as rnk, 
+DENSE_RANK() OVER (order by fees DESC) as dense_rnk
+from course c; 
+
+
+-- TODO: compute ranks by instructor salaries. ASC & DESC
+-- Rank instructors from lowest salary to highest salary
+SELECT
+    i.name,
+    i.salary,
+    RANK() OVER (ORDER BY i.salary ASC) AS salary_rank
+FROM instructor i;
+
+
+-- Rank courses department-wise based on fees
+-- Lowest fee gets Rank 1
+-- Ranking restarts from 1 for every department
+
+-- PARTITION BY divides the rows of a table into separate groups based on a specified column and performs the window function independently within each group.
+SELECT
+    c.name,
+    c.fees,
+    c.department_id,
+
+    DENSE_RANK() OVER (
+        PARTITION BY c.department_id
+        ORDER BY c.fees ASC
+    ) AS dense_rank_no
+
+FROM course c;
+
+
+
+-- =====================================================
+-- DATABASE: lms_db_2026
+-- TOPIC: STORED PROCEDURES
+-- =====================================================
+
+USE lms_db_2026;
+
+
+-- =====================================================
+-- 1. SIMPLE STORED PROCEDURE
+-- Display all courses
+-- =====================================================
+
+-- A stored procedure is a reusable box containing SQL queries.
+
+DROP PROCEDURE IF EXISTS all_courses;
+
+DELIMITER $$
+
+CREATE PROCEDURE all_courses()
+BEGIN
+    SELECT *
+    FROM course;
+END $$
+
+DELIMITER ;
+
+-- Display all stored procedures in this database
+SHOW PROCEDURE STATUS
+WHERE db = 'lms_db_2026';
+
+-- Execute the procedure
+CALL all_courses();
+
+
+-- =====================================================
+-- 2. STORED PROCEDURE WITH IN PARAMETER
+-- Display courses belonging to a particular department
+-- =====================================================
+
+DROP PROCEDURE IF EXISTS courses_by_dept_id;
+
+DELIMITER $$
+
+CREATE PROCEDURE courses_by_dept_id(IN p_deptId INT)
+BEGIN
+    SELECT c.id, c.name
+    FROM course c
+    WHERE c.department_id = p_deptId;
+END $$
+
+DELIMITER ;
+
+SHOW PROCEDURE STATUS
+WHERE db = 'lms_db_2026';
+
+-- Pass department ID = 1
+CALL courses_by_dept_id(1);
+
+-- Pass department ID = 2
+CALL courses_by_dept_id(2);
+
+
+-- =====================================================
+-- 3. STORED PROCEDURE WITH IN AND OUT PARAMETERS
+-- Calculate total fees of courses belonging to a track
+-- =====================================================
+
+DROP PROCEDURE IF EXISTS sum_course_fee_by_track_id;
+
+DELIMITER $$
+
+CREATE PROCEDURE sum_course_fee_by_track_id(
+    IN p_trackId INT,
+    OUT p_sum INT
+)
+BEGIN
+    SELECT SUM(c.fees)
+    INTO p_sum
+    FROM course c
+    JOIN course_track ct
+        ON c.id = ct.course_id
+    WHERE ct.track_id = p_trackId;
+END $$
+
+DELIMITER ;
+
+SHOW PROCEDURE STATUS
+WHERE db = 'lms_db_2026';
+
+-- Pass track ID = 2 and receive the result in @sum
+CALL sum_course_fee_by_track_id(2, @sum);
+
+-- Display the output variable
+SELECT @sum AS total_course_fee;
+
+
+-- =====================================================
+-- 4. STORED PROCEDURE WITH INOUT PARAMETER
+-- Receive track ID and replace it with the total course fee
+-- =====================================================
+
+DROP PROCEDURE IF EXISTS sum_course_fee_by_track_id_inout;
+
+DELIMITER $$
+
+CREATE PROCEDURE sum_course_fee_by_track_id_inout(
+    INOUT p_val INT
+)
+BEGIN
+    SELECT SUM(c.fees)
+    INTO p_val
+    FROM course c
+    JOIN course_track ct
+        ON c.id = ct.course_id
+    WHERE ct.track_id = p_val;
+END $$
+
+DELIMITER ;
+
+-- Assign initial track ID
+SET @val = 2;
+
+-- Pass the variable into the procedure
+CALL sum_course_fee_by_track_id_inout(@val);
+
+-- Display the modified value
+SELECT @val AS total_course_fee;
+
