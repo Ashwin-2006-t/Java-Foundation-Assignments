@@ -1528,3 +1528,440 @@ CALL sum_course_fee_by_track_id_inout(@val);
 -- Display the modified value
 SELECT @val AS total_course_fee;
 
+
+-- --------------------------------------------------- LOGIN ------------------------------------------------------
+use lms_db_2026;
+
+-- create a login procedure for LMS system
+-- in: username, password 
+-- out: role 
+DROP PROCEDURE IF EXISTS login;
+
+DELIMITER $$
+
+CREATE PROCEDURE login(
+    IN p_username VARCHAR(255),
+    IN p_password VARCHAR(255),
+    OUT p_role VARCHAR(255)
+)
+BEGIN
+    DECLARE v_password VARCHAR(255);
+    DECLARE v_role VARCHAR(255);
+    DECLARE v_isactive BOOLEAN;
+
+    -- Retrieve user details
+    SELECT u.password, u.role, u.is_active
+    INTO v_password, v_role, v_isactive
+    FROM user u
+    WHERE u.username = p_username;
+
+    -- Validate login
+    IF v_password IS NULL OR p_password <> v_password THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid credentials';
+
+    ELSEIF v_isactive = FALSE THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'User is disabled';
+
+    ELSE
+        SET p_role = v_role;
+
+    END IF;
+END $$
+DELIMITER ;
+
+SHOW PROCEDURE STATUS
+WHERE db = 'lms_db_2026';
+
+-- SQLSTATE	Meaning
+-- 00000		Successful execution
+-- 02000		No data found
+-- 23000		Integrity constraint violation
+-- 22001		String data too long
+-- 22003		Numeric value out of range
+-- 42000		Syntax error or access rule violation
+-- 45000		User-defined exception
+
+select * from user;
+
+CALL login('alice123', 'alice@123', @role); -- LEARNER
+select @role;
+
+CALL login('john123', 'john@123', @role);-- INSTRUCTOR
+select @role;
+
+CALL login('dfsdgsdfsdf', 'albus@123', @role); -- Error Code: 1644. Invalid credentials
+
+CALL login('alice123', '123', @role); -- Error Code: 1644. Invalid credentials
+
+CALL login('Albus Dumbleres', 'ablbus@432', @role); -- Error Code: 1644. User is disabled
+
+select * from user; 
+delete from user where id=10;
+update user SET is_active=false where id=9;
+update user SET is_active=true where id between 1 and 11 ; 
+
+
+
+
+-- -------------------------------------------------SIGN UP -----------------------------------------------------------------
+
+DESC user;
+desc learner;
+
+alter table learner
+modify column contact_id int null;
+
+-- =========================================
+-- LMS USER SIGN UP PROCEDURE
+-- =========================================
+
+-- Delete the existing procedure if it is already available.
+-- This allows us to recreate the procedure without an error.
+DROP PROCEDURE IF EXISTS signUp_user;
+
+-- Change the delimiter from ; to $$
+-- This prevents MySQL from ending the procedure at
+-- the first semicolon inside the procedure.
+DELIMITER $$
+
+-- Create a stored procedure named signUp_user
+CREATE PROCEDURE signUp_user(
+	-- Receive the learner's name from the caller
+    IN p_name VARCHAR(45),
+    -- Receive the username from the caller
+    IN p_username VARCHAR(255),
+    -- Receive the password from the caller
+    IN p_password VARCHAR(255)
+)
+
+BEGIN
+    -- Declare a local variable to store the number
+    -- of existing users with the given username
+    DECLARE v_count INT;
+
+    -- Declare a local variable to store the newly
+    -- generated user ID from the user table
+    DECLARE v_user_id INT;
+
+    -- ERROR HANDLER
+    -- If any SQL exception occurs inside the procedure,
+    -- execute the following handler
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        -- Cancel all uncommitted database changes
+        ROLLBACK;
+        -- Pass the original error back to the caller
+        RESIGNAL;
+    END;
+
+    -- Start a transaction.
+    -- All database changes from here are treated as one unit.
+    START TRANSACTION;
+
+    -- STEP 1: CHECK WHETHER USERNAME EXISTS
+    
+    -- Count how many records have the given username
+    -- Store the result in the local variable v_count
+    SELECT COUNT(*) INTO v_count
+    FROM user
+    WHERE username = p_username;
+
+
+    -- =========================================
+    -- STEP 2: VALIDATE USERNAME
+    
+    -- If the username already exists, throw a custom error
+    IF v_count > 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Username already exists';
+
+    ELSE
+        -- =========================================
+        -- STEP 3: INSERT INTO USER TABLE
+  
+		-- Insert login credentials into the user table
+        -- Assign the default role as LEARNER
+        -- Set the account status as TRUE (active)
+        INSERT INTO user (username, password, role, is_active)
+        VALUES (p_username, p_password, 'LEARNER', TRUE);
+
+        -- =========================================
+        -- STEP 4: GET THE GENERATED USER ID
+
+        -- Retrieve the AUTO_INCREMENT ID generated
+        -- by the previous INSERT statement
+        SET v_user_id = LAST_INSERT_ID();
+    --     select u.id into v_user_id 
+--         from user u 
+--         where u.username = p_username;
+
+
+        -- =========================================
+        -- STEP 5: INSERT INTO LEARNER TABLE
+	
+        -- Insert the learner's personal details
+        -- Use v_user_id to link the learner with the user account
+        -- Set contact_id and address_id as NULL for now
+        INSERT INTO learner (name, user_id, contact_id, address_id)
+        VALUES (p_name, v_user_id, NULL, NULL);
+
+    END IF;
+    -- =========================================
+    -- STEP 6: SAVE THE TRANSACTION
+    -- =========================================
+
+    -- Save both INSERT operations permanently
+    -- This executes only if no SQL exception occurred
+    COMMIT;
+-- End of the stored procedure
+END $$
+-- Restore the default delimiter
+DELIMITER ;
+
+
+show procedure status where db = "lms_db_2026";
+-- ========================================= 
+-- EXECUTE THE SIGN UP PROCEDURE
+-- =========================================
+
+CALL signUp_user('Alice', 'alice123', 'alice@123'); -- Error Code: 1644. Username already exists
+
+CALL signUp_user('RAM', 'RAM1234', 'RAM@1234');
+
+-- Display all registered users
+SELECT * FROM user;
+
+-- Display all registered learners
+SELECT * FROM learner;
+
+
+
+
+-- ask for name, username, password 
+-- assign role as LEARNER, is_active as true 
+
+-- check if username exits already is yes then throw exception
+-- do a simple insert 
+
+drop procedure if exists learner_signup;
+
+DELIMITER $$
+create procedure learner_signup(
+IN p_username varchar(255),
+IN p_password varchar(255), 
+IN p_primary_contact varchar(255),
+IN p_main_email varchar(255),
+IN p_learner_name varchar(255)
+)
+
+begin
+	declare v_user_id INT; 
+    declare v_contact_id INT; 
+    -- validate username to check if its already present 
+    if EXISTS ( select 1 from user u where u.username = p_username) THEN
+		SIGNAL sqlstate '45000' SET message_text='Username already taken, try a new one'; 
+    end if; 
+    
+	-- sql 
+    insert into user(username,password, role, is_active) values (p_username, p_password, 'LEARNER', true); 
+    SET v_user_id = last_insert_id(); -- the id that DB will use to insert user is now in v_user_id
+    
+    insert into contact(primary_contact, main_email) values (p_primary_contact, p_main_email);
+    SET v_contact_id = last_insert_id(); -- the id that DB will use to insert contact is now in v_contact_id
+    
+    insert into learner(name,user_id,contact_id) values (p_learner_name, v_user_id, v_contact_id);
+end;
+$$
+ 
+CALL learner_signup('imtiyaz', 'imtiyaz@123', '556445889', 'imtiyaz00hirani@gmail.com', 'Imtiyaz Hirani');
+
+select * from learner; 
+select * from user; 
+select * from contact; 
+
+CALL learner_signup('imtiyaz', 'imtiyaz@123', '556445889', 'imtiyaz00hirani@gmail.com', 'Imtiyaz Hirani');
+-- Error Code: 1644. Username already taken, try a new one
+
+
+
+-- ----------------------------------------------------------------ENROLL Procedure --------------------------------------------------------------
+-- =========================================
+-- LMS COURSE ENROLLMENT PROCEDURE
+-- =========================================
+
+DROP PROCEDURE IF EXISTS enroll_course;
+
+DELIMITER $$
+CREATE PROCEDURE enroll_course(
+    -- Receive learner ID
+    IN p_learner_id INT,
+    -- Receive course ID
+    IN p_course_id INT,
+    -- Receive amount paid by learner
+    IN p_amount_paid DOUBLE,
+    -- Receive coupon code
+    IN p_coupon VARCHAR(45)
+)
+BEGIN
+    -- Store the course fees
+    DECLARE v_course_fee DOUBLE;
+    -- Store the calculated discount
+    DECLARE v_discount DOUBLE;
+
+    -- =========================================
+    -- STEP 1: CHECK LEARNER ID
+    -- =========================================
+    -- Check whether the learner ID exists
+    IF NOT EXISTS (
+        SELECT 1
+        FROM learner l
+        WHERE l.id = p_learner_id
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid learner ID';
+    END IF;
+
+    -- =========================================
+    -- STEP 2: CHECK COURSE ID
+    -- =========================================
+    -- Check whether the course ID exists
+    IF NOT EXISTS (
+        SELECT 1
+        FROM course c
+        WHERE c.id = p_course_id
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid course ID';
+    END IF;
+
+    -- =========================================
+    -- STEP 3: CHECK EXISTING ENROLLMENT
+    -- =========================================
+
+    -- Check whether this learner is already
+    -- enrolled in the given course
+    IF EXISTS (
+        SELECT 1
+        FROM learner_course lc
+        WHERE lc.learner_id = p_learner_id
+          AND lc.course_id = p_course_id
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Already enrolled in this course';
+
+    END IF;
+
+    -- =========================================
+    -- STEP 4: GET COURSE FEES
+    -- =========================================
+
+    -- Retrieve the fees of the selected course
+    -- and store them in v_course_fee
+    SELECT c.fees
+    INTO v_course_fee
+    FROM course c
+    WHERE c.id = p_course_id;
+
+
+    -- =========================================
+    -- STEP 5: CALCULATE DISCOUNT
+    -- =========================================
+    -- Discount = Course Fees - Amount Paid
+    SET v_discount = v_course_fee - p_amount_paid;
+
+    -- =========================================
+    -- STEP 6: INSERT ENROLLMENT DETAILS
+    -- =========================================
+    INSERT INTO learner_course
+    (
+        learner_id,
+        course_id,
+        date_of_enroll,
+        amount_paid,
+        coupon,
+        discount
+    )
+    VALUES
+    (
+        p_learner_id,
+        p_course_id,
+        CURRENT_DATE(),
+        p_amount_paid,
+        p_coupon,
+        v_discount
+    );
+    
+END $$
+DELIMITER ;
+
+show procedure status where db = "lms_db_2026";
+
+CALL enroll_course(13, 6, 8000, 'WELCOME20');
+
+CALL enroll_course(13, 6, 8000, 'WELCOME20'); -- Error Code: 1644. Already enrolled in this course
+
+
+
+
+
+use lms_db_2026;
+-- ---------------------------------------------------------Views ------------------------------------------------------
+select * 
+from learner l 
+LEFT JOIN user u ON l.user_id = u.id 
+LEFT JOIN contact c ON l.contact_id = c.id 
+LEFT JOIN address a ON l.address_id = a.id; 
+
+-- learner info to be given : Template 
+-- id, name, username, is_active , primary_contact, main_email, city
+
+create view learner_view AS
+select l.id as 'learner_id', l.name as 'learner_name', u.username as 'username', u.is_active , 
+c.primary_contact as 'contact' , c.main_email as 'email' , coalesce(a.city, "Not given") as 'City' 
+from learner l 
+LEFT JOIN user u ON l.user_id = u.id 
+LEFT JOIN contact c ON l.contact_id = c.id 
+LEFT JOIN address a ON l.address_id = a.id; 
+
+select * from learner_view; 
+
+
+/*
+Views
+1. Horizontal view : hide attributes ex. learner_view 
+2. Vertical view : hide tuples/records ex. active_learner_view
+*/
+
+create view active_learner_view AS
+select l.id as 'learner_id', l.name as 'learner_name', u.username as 'username', u.is_active , 
+c.primary_contact as 'contact' , c.main_email as 'email' , coalesce(a.city, "Not given") as 'City' 
+from learner l 
+LEFT JOIN user u ON l.user_id = u.id 
+LEFT JOIN contact c ON l.contact_id = c.id 
+LEFT JOIN address a ON l.address_id = a.id
+where u.is_active=true; 
+
+-- create a view of stats for courses having learners  
+/*
+course name | instructor name | number_of_learners 
+*/
+create view course_learner_stats AS
+select c.name as 'course name', i.name as 'instructor name', count(l.id) as 'number_of_learners'
+from learner l 
+JOIN learner_course lc ON l.id = lc.learner_id
+JOIN course c ON lc.course_id = c.id
+JOIN instructor i ON i.id = c.instructor_id
+group by c.id,c.name, i.name;
+
+/*
+-- -----------------------
+View vs. procedure
+-- -----------------------
+View is created on select statement
+Procedure is usually created for insert/update/delete ops 
+
+View cannnot take any i/p from end user
+Procedure can take i/p via IN parameter / INOUT parameter 
+*/
